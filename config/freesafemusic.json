@@ -1,0 +1,47 @@
+{
+    "enabled": true,
+
+    "base_url": "https://freesafemusic.com",
+    "license_url": "https://freesafemusic.com/usage",
+
+    "genres": [
+        "lofi",
+        "chill",
+        "cinematic",
+        "ambient",
+        "tropical",
+        "electronic",
+        "modern",
+        "dreamy"
+    ],
+
+    "preferred_tags": [
+        "lofi",
+        "chill",
+        "chillhop",
+        "cinematic",
+        "ambient",
+        "atmospheric",
+        "dreamy",
+        "melodic",
+        "tropical",
+        "summer",
+        "upbeat",
+        "electronic",
+        "modern",
+        "inspiring",
+        "uplifting",
+        "emotional",
+        "mellow",
+        "warm",
+        "soft",
+        "relaxing",
+        "groove",
+        "epic",
+        "smooth"
+    ],
+
+    "max_genre_pages": 4,
+    "request_timeout_seconds": 30,
+    "download_timeout_seconds": 180
+}

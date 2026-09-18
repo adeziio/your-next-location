@@ -1,0 +1,33 @@
+{
+    "video_provider": "pexels",
+    "music_provider": "freesafemusic",
+    "shorts": {
+        "target_duration_seconds": 50,
+        "resolution": {
+            "width": 1080,
+            "height": 1920
+        },
+        "fps": 30
+    },
+    "audio": {
+        "music": {
+            "enabled": true,
+            "volume": 0.45,
+            "fade_in_seconds": 1.0,
+            "fade_out_seconds": 2.5
+        }
+    },
+    "captions": {
+        "enabled": true,
+        "duration_seconds": 5,
+        "typing_fraction": 0.3,
+        "hold_fraction": 0.4,
+        "font_size": 64,
+        "letter_spacing": 0,
+        "text_color": "white",
+        "stroke_color": "black",
+        "stroke_width": 3,
+        "vertical_position": 0.642,
+        "horizontal_margin": 0.08
+    }
+}

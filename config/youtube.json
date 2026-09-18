@@ -1,0 +1,27 @@
+{
+    "api": {
+        "scope": [
+            "https://www.googleapis.com/auth/youtube.upload",
+            "https://www.googleapis.com/auth/youtube.readonly"
+        ]
+    },
+    "metadata": {
+        "defaults": {
+            "title_suffix": "",
+            "category_id": "24",
+            "privacy_status": "public",
+            "made_for_kids": false,
+            "tags": [
+                "#travel",
+                "#shorts",
+                "#cinematic",
+                "#travelshorts",
+                "#destination"
+            ],
+            "description_extra_lines": []
+        }
+    },
+    "account": {
+        "channel_name": "Your Next Location"
+    }
+}

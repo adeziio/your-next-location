@@ -1,0 +1,65 @@
+{
+    "channel": {
+        "name": "Your Next Location",
+        "description": "A cinematic travel channel. Every Short features ONE destination - a city, island, coastline, mountain town, region or country - shown through beautiful, atmospheric footage with music that fits the place. There is no narration, no facts, no subtitles and no commentary: the destination itself is the content. The video opens with a single location caption (pin emoji + City, Country) that types itself on, holds, and retraces off. After that the footage and the music carry the entire video. The feeling should be cinematic, immersive, atmospheric, modern, clean and effortless - like the viewer just arrived somewhere beautiful. Good destinations are visually rich: famous skylines, old towns, coastlines, mountains, deserts, islands and cities people dream about visiting."
+    },
+    "content_generation": {
+        "instruction": "Choose ONE destination for a cinematic travel Short. The destination must be a real, existing place with abundant, beautiful stock footage available. If the user supplied a destination, use it exactly as given. Otherwise draw a real destination at random from anywhere in the world, favouring visually striking and recognizable places. The destination is the entire content of the video - there is no story, no facts, no narration and no explanation to write.",
+        "visual_count": 14,
+        "destination_examples": [
+            "New York City, USA",
+            "Tokyo, Japan",
+            "Lisbon, Portugal",
+            "Bali, Indonesia",
+            "Kyoto, Japan",
+            "Paris, France",
+            "Santorini, Greece",
+            "Marrakech, Morocco",
+            "Cape Town, South Africa",
+            "Reykjavik, Iceland",
+            "Barcelona, Spain",
+            "Dubai, UAE",
+            "Sydney, Australia",
+            "Rio de Janeiro, Brazil",
+            "Vancouver, Canada",
+            "Seoul, South Korea",
+            "Venice, Italy",
+            "Amsterdam, Netherlands",
+            "Queenstown, New Zealand",
+            "Havana, Cuba",
+            "Istanbul, Turkey",
+            "Singapore",
+            "Maldives",
+            "Swiss Alps, Switzerland",
+            "Amalfi Coast, Italy",
+            "Hawaii, USA",
+            "Dubrovnik, Croatia",
+            "Bangkok, Thailand",
+            "Mexico City, Mexico",
+            "Edinburgh, Scotland"
+        ],
+        "visual_rules": [
+            "Every search query must be a practical Pexels stock-footage search for the chosen destination - something a human editor would realistically type into a stock footage site.",
+            "Every query MUST name the destination or a recognizable part of it so the footage really shows that place. Use the most common English name of the destination: 'New York City skyline aerial', 'Tokyo street crossing night', 'Lisbon tram old town', 'Bali rice terrace sunrise'.",
+            "Write each query as 3-6 words: the destination (or a landmark/neighbourhood of it) plus the type of shot - aerial, skyline, street, waterfront, sunset, night, cafe, market, temple, beach.",
+            "Cover the destination from many angles across the queries. Spread the list across: skylines and cityscapes, aerial and drone-style views, streets and local life, architecture and landmarks, waterfronts, nature nearby, cafes and restaurants, markets, sunsets and golden hour, night scenes, transport, and close-up details.",
+            "Do not repeat the same query, the same landmark or the same shot type twice.",
+            "Do not write abstract, metaphorical, mood-only or CGI-like queries. If a query could not realistically return multiple usable clips on Pexels, rewrite it as a simpler, concrete shot of the destination.",
+            "Every query must be visually attractive: cinematic, atmospheric, beautiful light or movement. Avoid anything dull, or dominated by text signs.",
+            "Never use another city's name, and never use a vague generic query without the destination in it."
+        ],
+        "music_rules": [
+            "The music is the only audio in the video, so it must match the destination and the footage: the culture, the climate and the energy of the place.",
+            "Music does NOT have to be relaxing. Choose what fits the destination: lofi and chill for a slow atmospheric city, cinematic and epic for mountains and skylines, tropical and upbeat for islands and coastlines, dreamy and ambient for moody northern places, modern electronic for a sleek futuristic city.",
+            "Output 1-3 lowercase mood words for the music. Use words from this list only: lofi, chill, dreamy, cinematic, ambient, melodic, tropical, upbeat, atmospheric, modern, electronic, inspiring, relaxing, warm, energetic, epic, smooth, nostalgic.",
+            "Never describe a specific copyrighted song or artist. Only the general mood and style are chosen here; the licensed track itself is selected automatically from a royalty-free library."
+        ],
+        "creative_directions": [
+            "The destination is the content. Do not invent a story, a plot, a character, facts, statistics, history, opinions or commentary - none of it appears in the video.",
+            "Simple and beautiful beats clever: a real, visually stunning place filmed well is the whole idea.",
+            "Pick destinations that are both recognizable and rich in footage. Every destination must be a real place that exists today.",
+            "Keep the title and summary honest and travel-focused: they are used for the upload metadata only, never shown in the video.",
+            "Variety matters: never repeat the previous destination if another equally good one is available, and rarely stay in the same country or region twice in a row."
+        ]
+    }
+}
