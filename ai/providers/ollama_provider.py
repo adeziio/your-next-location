@@ -60,21 +60,29 @@ class OllamaProvider:
             f"{self.model}"
         )
 
+        # Ollama defaults the sampler seed to 0, which makes every
+        # request with the same prompt produce the SAME output - the
+        # model keeps returning one favorite destination. A negative
+        # seed tells Ollama to draw a fresh seed per request, so
+        # temperature/top_p actually get to do their job.
+        options = (
+            dict(self.options)
+            if isinstance(self.options, dict)
+            else {}
+        )
+
+        options.setdefault(
+            "seed",
+            -1
+        )
+
         request_data = {
             "model": self.model,
             "prompt": prompt,
             "stream": False,
-            "think": self.thinking
+            "think": self.thinking,
+            "options": options
         }
-
-        if isinstance(
-            self.options,
-            dict
-        ) and self.options:
-
-            request_data["options"] = dict(
-                self.options
-            )
 
         if response_format:
 

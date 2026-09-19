@@ -1,4 +1,5 @@
 import json
+import random
 import re
 from pathlib import Path
 
@@ -15,28 +16,6 @@ MAX_VISUAL_COUNT = 30
 MAX_DESTINATION_LENGTH = 48
 
 DEFAULT_MUSIC_MOODS = ["cinematic", "chill"]
-
-# Mood words the music provider can map onto licensed genre pages.
-ALLOWED_MUSIC_MOODS = (
-    "lofi",
-    "chill",
-    "dreamy",
-    "cinematic",
-    "ambient",
-    "melodic",
-    "tropical",
-    "upbeat",
-    "atmospheric",
-    "modern",
-    "electronic",
-    "inspiring",
-    "relaxing",
-    "warm",
-    "energetic",
-    "epic",
-    "smooth",
-    "nostalgic",
-)
 
 
 class ContentGenerationError(RuntimeError):
@@ -118,6 +97,66 @@ class ContentGenerator(BaseAIService):
             {}
         )
 
+        # Mood words the music provider can map onto licensed genre
+        # pages. Config-driven: extend or trim the list in
+        # config/content.json without touching code.
+        self.allowed_music_moods = tuple(
+            str(mood).strip().lower()
+            for mood in self.generation_config.get(
+                "allowed_music_moods",
+                (
+                    "lofi", "chill", "dreamy", "cinematic", "ambient",
+                    "melodic", "tropical", "upbeat", "atmospheric",
+                    "modern", "electronic", "inspiring", "relaxing",
+                    "warm", "energetic", "epic", "smooth", "nostalgic",
+                )
+            )
+            if str(mood).strip()
+        ) or (
+            "cinematic", "chill",
+        )
+
+        # The destination roulette. Regions and the places inside them
+        # come from config/content.json
+        # (content_generation.destinations) - a mix of countries and
+        # famous individual cities so the draw varies at city level,
+        # not just country level.
+        self.destinations = (
+            self.generation_config.get(
+                "destinations",
+                {}
+            )
+        )
+
+    def roll_destination(self):
+
+        """
+        Spins the destination roulette and returns (region, place).
+
+        Both levels are config-driven from content_generation
+        .destinations in config/content.json.
+        """
+
+        destinations = self.destinations
+
+        if not isinstance(destinations, dict) or not destinations:
+
+            return None, None
+
+        region = random.choice(
+            sorted(destinations)
+        )
+
+        entries = destinations[region]
+
+        if not isinstance(entries, list) or not entries:
+
+            return None, None
+
+        place = random.choice(entries)
+
+        return region, place
+
     def format_bullets(self, values):
 
         if not isinstance(values, list):
@@ -173,10 +212,6 @@ class ContentGenerator(BaseAIService):
             )
         )
 
-        example_destinations = self.format_bullets(
-            c.get("destination_examples", [])
-        )
-
         visual_rules = self.format_bullets(
             c.get("visual_rules", [])
         )
@@ -212,7 +247,51 @@ class ContentGenerator(BaseAIService):
 
         instruction = str(instruction or "").strip()
 
-        if instruction:
+        # Without a user destination the CODE draws the destination
+        # from the roulette and hands it to the model. Small local
+        # models ignore "choose at random" instructions and keep
+        # returning the same famous city (Reykjavik, Bali, ...), so
+        # the randomness must live here, not in the model.
+        rolled_region = None
+        rolled_place = None
+
+        if not instruction:
+
+            rolled_region, rolled_place = (
+                self.roll_destination()
+            )
+
+            if rolled_place:
+
+                self.log(
+                    "Destination roulette: "
+                    f"{rolled_place} ({rolled_region})"
+                )
+
+                instruction_section = (
+                    "USER DESTINATION / INSTRUCTION (HIGHEST PRIORITY)\n"
+                    "The destination has already been chosen by random draw. "
+                    "You MUST use exactly this destination:\n"
+                    f"{rolled_place} ({rolled_region})\n"
+                    "If the drawn place is a country, pick the best-known city "
+                    "or region inside it (or the country itself when it is the "
+                    "attraction). If the drawn place is already a city or "
+                    "island, use it exactly as drawn. Write it as "
+                    "\"City, Country\" in STEP 1. Do NOT swap it for any "
+                    "other place.\n\n"
+                )
+
+            else:
+
+                # No roulette configured - let the model choose freely.
+
+                instruction_section = (
+                    "USER DESTINATION / INSTRUCTION (HIGHEST PRIORITY)\n"
+                    "No destination was supplied. Choose one yourself at "
+                    "random as described in STEP 1.\n\n"
+                )
+
+        else:
 
             instruction_section = (
                 "USER DESTINATION / INSTRUCTION (HIGHEST PRIORITY)\n"
@@ -224,14 +303,6 @@ class ContentGenerator(BaseAIService):
                 f"{instruction}\n"
                 "If no usable destination is supplied, choose one yourself at "
                 "random as described in STEP 1.\n\n"
-            )
-
-        else:
-
-            instruction_section = (
-                "USER DESTINATION / INSTRUCTION\n"
-                "The user supplied nothing, so you MUST choose the destination "
-                "yourself at random as described in STEP 1.\n\n"
             )
 
         head = (
@@ -258,19 +329,15 @@ class ContentGenerator(BaseAIService):
             "or country that exists today.\n"
             "- If the user supplied a place, use it EXACTLY as given - same "
             "spelling, same city, same country. Do not replace it.\n"
-            "- Otherwise draw ONE destination at random from anywhere in the "
-            "world. Every region must be roughly equally likely: Europe, Asia, "
-            "North America, South America, Africa, Oceania, the Middle East, the "
-            "Caribbean, the Arctic. Never default to the same handful of famous "
-            "cities.\n"
+            "- Otherwise use the destination chosen by the random draw above. "
+            "It may be a country or a specific city - either way it is final. "
+            "Never default to the same handful of famous cities.\n"
             "- Choose places that are visually stunning and filmed often enough "
             "that beautiful stock footage exists.\n"
             '- Write the destination as "City, Country" (or "Region, Country" '
             "when it is not a city), in English, at most 40 characters, with the "
             "country written the way English speakers normally write it (USA, UK, "
             "Italy, Japan...).\n"
-            "- Example destinations (style reference only - never copy the list):\n"
-            f"{example_destinations}\n"
             "- NEVER invent a place and never combine two real places into one "
             "name.\n\n"
             "STEP 2 - THE TITLE (IT IS THE DESTINATION)\n"
@@ -291,20 +358,19 @@ class ContentGenerator(BaseAIService):
             "the place, so the summary only describes it. Example for "
             'Lisbon, Portugal: "Sunlit yellow trams climbing tiled hillsides '
             'above the Tagus river". Correct capitalization, spacing and '
-            "final punctuation. One sentence only - no lists, no facts, no "
+            "final punctuation. Must end with a period. One sentence only - no lists, no facts, no "
             "statistics, no second sentence, no destination prefix.\n\n"
             "STEP 4 - MUSIC MOOD\n"
             f"{music_rules}\n"
             '- "music_mood": 1-3 lowercase words separated by spaces, chosen only '
-            "from this list: " + ", ".join(ALLOWED_MUSIC_MOODS) + ".\n\n"
+            "from this list: " + ", ".join(self.allowed_music_moods) + ".\n\n"
             f"STEP 5 - THE {visual_count} VISUAL SEARCH QUERIES\n"
             f'- "visuals": EXACTLY {visual_count} objects, each with exactly one '
             'field: {"search_query": "stock footage search phrase"}.\n'
             f"{visual_rules}\n"
             "- Every search_query MUST include the full destination name "
-            "including the country (for example \"queenstown new zealand lake "
-            "aerial\"), never the city alone - otherwise the search engine "
-            "returns footage of wrong places with similar names.\n"
+            "including the country, never the city alone - otherwise the search "
+            "engine returns footage of wrong places with similar names.\n"
             "- The queries are used in order, back to back, to build the "
             f"{target_seconds_str}-second video, so together they must show a "
             "complete, varied picture of the destination.\n\n"
@@ -556,7 +622,7 @@ class ContentGenerator(BaseAIService):
 
         for word in words:
 
-            if word in ALLOWED_MUSIC_MOODS and word not in moods:
+            if word in self.allowed_music_moods and word not in moods:
 
                 moods.append(word)
 
@@ -712,6 +778,13 @@ class ContentGenerator(BaseAIService):
 
             summary = "Cinematic travel moments from this destination."
 
+        # Ensure the summary ends with proper sentence punctuation.
+        # The prompt asks for one complete sentence; enforce it here so
+        # the description is always well-formed for upload metadata.
+        if summary and summary[-1] not in ".!?":
+
+            summary = summary.rstrip() + "."
+
         visuals = content.get("visuals", [])
 
         if not isinstance(visuals, list):
@@ -765,7 +838,11 @@ class ContentGenerator(BaseAIService):
 
         if not moods:
 
-            moods = list(DEFAULT_MUSIC_MOODS)
+            # Fall back to the first allowed moods from config.
+
+            moods = list(
+                self.allowed_music_moods[:2]
+            ) or list(DEFAULT_MUSIC_MOODS)
 
         self.log(
             "Music mood: " + " ".join(moods)
