@@ -612,6 +612,84 @@ class Composer:
             video_duration
         )
 
+    def _normalize_audio(
+        self,
+        audio_clip,
+        target_db=-16.0,
+        peak_limit=-1.0
+    ):
+        """
+        Normalize an audio clip to a target RMS level and limit the peak.
+
+        Every FreeSafeMusic source track lands at a different loudness
+        level. We normalize each track so the volume multiplier in config
+        has a predictable effect on the final heard volume.
+
+        Parameters
+        ----------
+        audio_clip : AudioFileClip
+            The music clip to normalize.
+        target_db : float
+            Target RMS level in dB (e.g. -16.0 for -16 dBFS RMS).
+        peak_limit : float
+            Maximum allowed peak in dB (e.g. -1.0 for -1 dBFS).
+
+        Returns
+        -------
+        AudioFileClip
+            The normalized clip.
+        """
+        import numpy as np
+
+        # Get the audio as a numpy array using to_soundarray
+        # Sample at the clip's native fps
+        audio_array = audio_clip.to_soundarray(
+            fps=audio_clip.fps,
+            quantize=False
+        )
+
+        if audio_array.size == 0:
+            return audio_clip
+
+        # Calculate current RMS
+        rms = np.sqrt(np.mean(audio_array ** 2))
+
+        # Handle silent audio
+        if rms < 1e-10:
+            return audio_clip
+
+        # Calculate target linear gain
+        target_linear = 10 ** (target_db / 20.0)
+        gain_factor = target_linear / rms
+
+        # Clamp gain to avoid extreme values
+        gain_factor = max(0.01, min(gain_factor, 100.0))
+
+        # Apply the gain
+        normalized_clip = audio_clip.with_volume_scaled(gain_factor)
+
+        # Check peak after normalization
+        # Use to_soundarray for peak detection (avoid ambiguous max_volume API)
+        peak_array = normalized_clip.to_soundarray(
+            fps=audio_clip.fps,
+            quantize=False
+        )
+
+        if peak_array.size > 0:
+            peak = float(np.max(np.abs(peak_array)))
+        else:
+            peak = 0.0
+
+        if peak > 0:
+            target_peak_linear = 10 ** (peak_limit / 20.0)
+
+            if peak > target_peak_linear:
+                # Apply peak limiting
+                limiter_gain = target_peak_linear / peak
+                normalized_clip = normalized_clip.with_volume_scaled(limiter_gain)
+
+        return normalized_clip
+
     def _build_music(
         self,
         video_duration,
@@ -663,13 +741,31 @@ class Composer:
             music_files[0]
         )
 
-        music_clip = AudioFileClip(
-            str(
-                music_path
-            )
-        )
-
         try:
+
+            music_clip = AudioFileClip(
+                str(
+                    music_path
+                )
+            )
+
+            # Loudness normalization: every FreeSafeMusic source track lands
+            # at a different level (-18 dB to -8 dB RMS). We normalize each
+            # track to a target RMS so that the volume multiplier in config
+            # has a predictable effect on the final loudness. Without this,
+            # the same 0.45 setting produces wildly different heard volumes.
+            norm_target = float(
+                music_config.get(
+                    "normalize_rms",
+                    -16.0
+                )
+            )
+
+            music_clip = self._normalize_audio(
+                music_clip,
+                target_db=norm_target,
+                peak_limit=-1.0
+            )
 
             looped = music_clip.with_effects(
                 [
@@ -681,7 +777,7 @@ class Composer:
                 float(
                     music_config.get(
                         "volume",
-                        0.45
+                        1.0
                     )
                 )
             )
