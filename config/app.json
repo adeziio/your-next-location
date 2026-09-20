@@ -23,12 +23,12 @@
         "duration_seconds": 5,
         "typing_fraction": 0.3,
         "hold_fraction": 0.4,
-        "font_size": 64,
+        "font_size": 66,
         "letter_spacing": 0,
         "text_color": "white",
         "stroke_color": "black",
         "stroke_width": 3,
         "vertical_position": 0.642,
-        "horizontal_margin": 0.08
+        "horizontal_margin": 0.03
     }
 }
