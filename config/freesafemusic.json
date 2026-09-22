@@ -7,12 +7,36 @@
     "genres": [
         "lofi",
         "chill",
-        "cinematic",
+        "mellow",
+        "dreamy",
         "ambient",
+        "atmospheric",
+        "cinematic",
+        "epic",
+        "orchestral",
+        "emotional",
+        "piano",
+        "inspiring",
+        "uplifting",
+        "melodic",
         "tropical",
-        "electronic",
+        "summer",
+        "upbeat",
+        "happy",
         "modern",
-        "dreamy"
+        "electronic",
+        "groove",
+        "relaxing",
+        "soft",
+        "warm",
+        "acoustic",
+        "gentle",
+        "energetic",
+        "smooth",
+        "lounge",
+        "jazz",
+        "nostalgic",
+        "vintage"
     ],
 
     "preferred_tags": [
@@ -42,6 +66,7 @@
     ],
 
     "max_genre_pages": 4,
+    "shuffle_genres": true,
     "request_timeout_seconds": 30,
     "download_timeout_seconds": 180
 }

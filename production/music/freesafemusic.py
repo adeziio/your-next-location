@@ -152,7 +152,7 @@ class FreeSafeMusicProvider(MusicProvider):
             int(
                 provider_config.get(
                     "max_genre_pages",
-                    2
+                    4
                 )
             )
         )
@@ -164,6 +164,13 @@ class FreeSafeMusicProvider(MusicProvider):
                     "request_timeout_seconds",
                     30
                 )
+            )
+        )
+
+        self.shuffle_genres = bool(
+            provider_config.get(
+                "shuffle_genres",
+                True
             )
         )
 
@@ -353,6 +360,15 @@ class FreeSafeMusicProvider(MusicProvider):
         mood_tags
     ):
 
+        """
+        Returns the configured genre slugs the mood maps to,
+        deduplicated, in mood-first order (so the destination's own
+        genre is always fetched first), capped at max_genre_pages.
+        The supporting genres are shuffled on every fetch (when
+        enabled) so different videos draw from different genre pages
+        while the location topic still leads the pick.
+        """
+
         slugs = []
 
         for mood in mood_tags:
@@ -377,6 +393,18 @@ class FreeSafeMusicProvider(MusicProvider):
                 slugs.append(
                     genre
                 )
+
+        if (
+            self.shuffle_genres
+            and len(slugs) > 2
+        ):
+
+            # Keep the primary mood genre first so the location topic
+            # still drives the pick; only the supporting genres rotate,
+            # which varies the candidate pool from video to video.
+            tail = slugs[1:]
+            random.shuffle(tail)
+            slugs = slugs[:1] + tail
 
         return slugs[
             :self.max_genre_pages
@@ -500,90 +528,24 @@ class FreeSafeMusicProvider(MusicProvider):
     ):
 
         """
-        Scores tracks by how well their tags match the destination's
-        mood plus the configured preference for travel-friendly styles,
-        then picks randomly among the best matches so videos vary.
+        Picks one track uniformly at random from the candidates. The
+        pool itself comes from the mood's genre pages (fetched
+        mood-first), so every pick fits the location topic - but
+        within that fit the choice is total random, and back-to-back
+        repeats can happen.
         """
 
-        wanted = []
+        eligible = [
+            track
+            for track in tracks
+            if track.get("tags")
+        ]
 
-        for tag in mood_tags:
-
-            if tag not in wanted:
-
-                wanted.append(
-                    tag
-                )
-
-        for tag in self.preferred_tags:
-
-            if tag not in wanted:
-
-                wanted.append(
-                    tag
-                )
-
-        scored = []
-
-        for track in tracks:
-
-            tags = set(
-                track.get(
-                    "tags",
-                    []
-                )
-            )
-
-            if not tags:
-
-                continue
-
-            score = len(
-                tags.intersection(
-                    wanted
-                )
-            )
-
-            if wanted and score <= 0:
-
-                continue
-
-            scored.append(
-                (score, track)
-            )
-
-        if not scored:
-
-            # No tag overlap (for example, an unusual mood word
-            # with no preferred tags configured). The genre pages
-            # themselves already pre-filter for the requested styles,
-            # so any track from them is acceptable.
-
-            scored = [
-                (0, track)
-                for track in tracks
-                if track.get("tags")
-            ]
-
-        if not scored:
+        if not eligible:
 
             return None
 
-        best_score = max(
-            score
-            for score, _ in scored
-        )
-
-        best = [
-            track
-            for score, track in scored
-            if score >= best_score
-        ]
-
-        return random.choice(
-            best
-        )
-
+        return random.choice(eligible)
 
 
     def _download(
