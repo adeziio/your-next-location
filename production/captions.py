@@ -9,6 +9,7 @@ from PIL import (
 )
 
 from moviepy import ImageClip
+from moviepy.video.fx import FadeIn, FadeOut
 
 
 class LocationCaptionError(RuntimeError):
@@ -16,60 +17,121 @@ class LocationCaptionError(RuntimeError):
     pass
 
 
-# Bulky, clean sans-serif faces that stay readable over bright footage.
-TEXT_FONT_CANDIDATES = [
-    "C:/Windows/Fonts/arialbd.ttf",
-    "C:/Windows/Fonts/seguisb.ttf",
-    "C:/Windows/Fonts/arial.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-    "/System/Library/Fonts/Supplemental/Arial.ttf",
-]
+# Font candidates for the location caption text. The first file that exists
+# on the host machine wins. Candidates are grouped by visual weight so the
+# caption's letter thickness is configurable via the "font_weight" setting in
+# config/app.json ("light" | "semilight" | "normal" | "semibold" | "bold").
+# Each group is ordered from the thinnest face available on that platform to
+# the thickest.
+TEXT_FONT_CANDIDATES = {
+    "light": [
+        "C:/Windows/Fonts/segoeuil.ttf",               # Segoe UI Light
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Light.ttf",
+        "C:/Windows/Fonts/segoeuisl.ttf",              # Segoe UI Semilight
+        "C:/Windows/Fonts/arial.ttf",                  # Arial Regular
+        "C:/Windows/Fonts/segoeui.ttf",                # Segoe UI Regular
+        "/System/Library/Fonts/SFNS.ttf",              # San Francisco (macOS)
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    ],
+    "semilight": [
+        "C:/Windows/Fonts/segoeuisl.ttf",              # Segoe UI Semilight
+        "C:/Windows/Fonts/arial.ttf",                  # Arial Regular
+        "C:/Windows/Fonts/segoeui.ttf",                # Segoe UI Regular
+        "/System/Library/Fonts/SFNS.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    ],
+    "normal": [
+        "C:/Windows/Fonts/arial.ttf",                  # Arial Regular
+        "C:/Windows/Fonts/segoeui.ttf",                # Segoe UI Regular
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/System/Library/Fonts/SFNS.ttf",
+    ],
+    "semibold": [
+        "C:/Windows/Fonts/seguisb.ttf",                # Segoe UI Semibold
+        "C:/Windows/Fonts/arialbd.ttf",                # Arial Bold
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+    ],
+    "bold": [
+        "C:/Windows/Fonts/arialbd.ttf",                # Arial Bold
+        "C:/Windows/Fonts/segoeuib.ttf",               # Segoe UI Bold
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+    ],
+}
 
-# The location pin is the real emoji glyph: it is drawn with the
-# platform color emoji font (embedded_color=True) directly on the
-# text baseline, so it renders in full color and in the machine's own
-# emoji design. Nothing is stored in the repository and nothing is
-# downloaded at render time. On a machine without a color emoji font
-# the pin falls back to artwork drawn in code (see _pin_artwork),
-# placed with the same proportions so the caption still reads right.
+# The location pin in the caption text is the round pushpin unicode
+# character (📍, U+1F4CD). The caption normalisation in _normalize_caption
+# and the pin-identification check in _layout both key off this constant, so
+# it is the single source of truth for the pin codepoint. The pin is never
+# rendered with a platform emoji font: every render path draws it in code as
+# the "lollipop" artwork (a hot-pink ball on a thin white stem with a white
+# highlight dot) so the visual is identical on every machine. Nothing is
+# stored in the repository and nothing is downloaded at render time.
 LOCATION_PIN = "\U0001F4CD"
 
+# Characters that should be replaced by the code-drawn pin artwork. The
+# primary pin is the round pushpin; the map pin is included for tolerance so a
+# caption that happened to carry the alternate glyph still renders the same
+# artwork instead of falling back to a missing-glyph box.
 PIN_CHARACTERS = (
     LOCATION_PIN,
     "\U0001F4CC",
 )
 
-# Platform color emoji fonts, tried in order. These are loaded with
-# embedded_color=True, which is what makes Pillow paint the real
-# full-color emoji instead of a washed-out monochrome outline.
-EMOJI_FONT_CANDIDATES = [
-    "C:/Windows/Fonts/seguiemj.ttf",
-    "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
-    "/System/Library/Fonts/Apple Color Emoji.ttc",
-    "/Library/Fonts/Apple Color Emoji.ttc",
-]
+# Proportions of the pin slot, measured from the sample captions in
+# media/output/shorts (720x1280, text font about 46 px there), all
+# normalised by the text font size so they hold at every resolution:
+#
+# * the pin ink (ball top to stem end) spans 0.74 of the font size
+#   above the baseline and 0.02 below it,
+# * the slot advance is 0.60 of the font size - the caption's own
+#   space character after the pin provides the rest of the gap to the
+#   text, which measures about 0.33 font sizes in the samples.
+#
+# The artwork itself is drawn so that its ball diameter is 0.72 of the
+# artwork square, which works out to about 0.55 font sizes - matching
+# the measured ball in the samples.
+PIN_ASCENT_RATIO = 0.74
 
-# Proportions of the emoji glyph, measured from the platform font: the
-# pin ink spans 0.897 of the font size above the baseline and 0.086
-# below it, and the glyph's natural advance is 1.38 of the font size.
-# Emoji glyphs sit centred in a wide em slot, which is what gives the
-# caption its generous gap between the pin and the text. The artwork
-# fallback reproduces these numbers so both paths agree.
-PIN_ASCENT_RATIO = 0.897
-PIN_DESCENT_RATIO = 0.086
-PIN_ADVANCE_RATIO = 1.38
+PIN_DESCENT_RATIO = 0.02
 
-# Emoji fonts are bitmap fonts, so drawing the pin straight at its
-# final size (about 58 px) picks a small bitmap strike and the ball
-# edge comes out noticeably jagged. The glyph is therefore rendered at
-# this multiple of the final size and then area-downscaled back down,
-# which recovers the smooth edge at no cost to the layout. 4x was
-# measured to be the point of diminishing returns: edge detail is
-# 12x higher than a direct render, and 6x is no sharper.
-PIN_SUPERSAMPLE = 4
+PIN_ADVANCE_RATIO = 0.60
+
+# Fade-in duration for each text character during the typing phase,
+# measured from the sample captions: the first character is fully opaque
+# by about the third frame (~0.10 s at 30 fps), so the fade is roughly
+# 0.07 s. This applies to every text character as it is revealed, one at
+# a time, left to right. The pin and the space glyphs share the same
+# fade duration.
+CHARACTER_FADE_SECONDS = 0.07
+
+# The pin fades in over roughly the first 0.07 s of the caption while
+# the first characters type on (measured: fully opaque by ~0.07 s).
+# The characters themselves fade in individually (see CHARACTER_FADE_SECONDS).
+PIN_FADE_SECONDS = 0.07
+
+# The white typewriter cursor that blinks on during the typing phase at
+# the right edge of the last revealed character, then again (in reverse)
+# during the retrace, and is hidden while the completed line holds.
+# Measured from the samples: about 0.96 of the font size tall, 0.045
+# wide, its bottom sitting 0.11 of the font size below the text baseline,
+# with a quick 2-frame blink at each appearance.
+CURSOR_HEIGHT_RATIO = 0.96
+
+CURSOR_WIDTH_RATIO = 0.045
+
+CURSOR_DROP_RATIO = 0.11
+
+# How long the cursor stays visible each time it appears (typing + retrace).
+# Measured: roughly 3 frames (~0.10 s at 30 fps) before it blinks away.
+CURSOR_VISIBLE_SECONDS = 0.10
 
 DEFAULT_DURATION_SECONDS = 5.0
 
@@ -137,13 +199,7 @@ class LocationCaptionBuilder:
             .parents[1]
         )
 
-        # Cached platform color emoji font per pixel size. None is
-        # cached too, so a machine without one only probes once.
-        self._emoji_fonts = {}
-
-        # Supersampled pin glyphs, cached per (character, font size).
-        self._pin_glyphs = {}
-
+        # Cached code-drawn pin artwork, keyed by pixel size.
         self._pin_art = None
 
         self._pin_art_size = None
@@ -304,7 +360,7 @@ class LocationCaptionBuilder:
             size = int(
                 self.config.get(
                     "font_size",
-                    58
+                    66
                 )
             )
 
@@ -356,11 +412,37 @@ class LocationCaptionBuilder:
 
                 return path
 
-        for candidate in TEXT_FONT_CANDIDATES:
+        # No explicit font path: select from the weight-grouped candidate
+        # lists. The requested weight is tried first, then the remaining
+        # weights in order so the caption is always usable even when the
+        # preferred weight is not installed on this machine.
+        weight = (
+            str(
+                self.config.get(
+                    "font_weight",
+                    "light"
+                )
+                or ""
+            )
+            .strip()
+            .lower()
+        )
 
-            if Path(candidate).is_file():
+        order = ["light", "semilight", "normal", "semibold", "bold"]
 
-                return Path(candidate)
+        if weight in order:
+
+            order.remove(weight)
+
+            order.insert(0, weight)
+
+        for w in order:
+
+            for candidate in TEXT_FONT_CANDIDATES.get(w, []):
+
+                if Path(candidate).is_file():
+
+                    return Path(candidate)
 
         return None
 
@@ -382,157 +464,22 @@ class LocationCaptionBuilder:
 
             return None
 
-    def _load_color_emoji_font(self, size):
-
-        """
-        Returns the platform color emoji font at the requested pixel
-        size, or None when the machine has no color emoji font.
-        """
-
-        size = max(1, int(size))
-
-        if size in self._emoji_fonts:
-
-            return self._emoji_fonts[size]
-
-        font = None
-
-        for candidate in EMOJI_FONT_CANDIDATES:
-
-            try:
-
-                font = ImageFont.truetype(
-                    candidate,
-                    size
-                )
-
-                break
-
-            except Exception:
-
-                continue
-
-        self._emoji_fonts[size] = font
-
-        return font
-
-    def _pin_glyph(self, character, font_size):
-
-        """
-        Renders one emoji pin glyph supersampled, and caches it per
-        (character, font size).
-
-        Returns (image, offset_x, offset_y), where the offsets place
-        the image's top-left corner in final-size pixels relative to
-        the glyph's pen position (origin_x, baseline) - exactly how
-        the font itself would have drawn it. Returns None when the
-        machine has no color emoji font.
-
-        The supersampling is the whole point: drawn directly at its
-        final size the emoji font uses a small bitmap strike and the
-        ball edge comes out visibly jagged.
-        """
-
-        key = (character, font_size)
-
-        if key in self._pin_glyphs:
-
-            return self._pin_glyphs[key]
-
-        result = None
-
-        big = font_size * PIN_SUPERSAMPLE
-
-        font = self._load_color_emoji_font(big)
-
-        if font is not None:
-
-            origin_x = big
-
-            baseline = big
-
-            canvas = Image.new(
-                "RGBA",
-                (big * 3, big * 3),
-                (0, 0, 0, 0)
-            )
-
-            draw = ImageDraw.Draw(canvas)
-
-            try:
-
-                draw.text(
-                    (origin_x, baseline),
-                    character,
-                    font=font,
-                    embedded_color=True,
-                    anchor="ls",
-                )
-
-            except Exception:
-
-                result = None
-
-            else:
-
-                ink = canvas.getbbox()
-
-                if ink:
-
-                    # Snap the crop out to whole supersample cells so
-                    # the downscale is an exact integer area average
-                    # and the placement offsets stay whole pixels.
-                    step = PIN_SUPERSAMPLE
-
-                    left = (ink[0] // step) * step
-
-                    top = (ink[1] // step) * step
-
-                    right = -(-ink[2] // step) * step
-
-                    bottom = -(-ink[3] // step) * step
-
-                    piece = canvas.crop(
-                        (left, top, right, bottom)
-                    )
-
-                    scaled = self._downscale_premultiplied(
-                        piece,
-                        (
-                            piece.width // step,
-                            piece.height // step,
-                        ),
-                        Image.LANCZOS
-                    )
-
-                    result = (
-                        scaled,
-                        (left - origin_x) // step,
-                        (top - baseline) // step,
-                    )
-
-        self._pin_glyphs[key] = result
-
-        return result
 
     def _pin_artwork(self, size):
 
         """
-        Draws the fallback location pin, used only on machines that
-        have no color emoji font.
+        Draws the location pin entirely in code - the sample
+        captions' "lollipop" pin: a rounded ball with a small white
+        highlight dot in its upper right, on a thin white stem - so
+        nothing is stored in the repository and nothing is downloaded
+        at render time. The caller places it centred in the pin's
+        advance slot on the shared text baseline.
 
-        It is the classic round pushpin drawn entirely in code - a
-        glossy red ball head on a tapered silver needle - so nothing
-        is stored in the repository and nothing is downloaded at
-        render time. The caller places it with the same proportions
-        as the emoji glyph, so the caption keeps its layout either
-        way.
-
-        The pin is rendered 4x supersampled with numpy gradient
-        shading - lambert diffuse plus a specular highlight on the
-        ball head, cylindrical silver shading down the needle - and
-        then area-downscaled for smooth edges. The result is cached
-        per pixel size.
+        The ball colour is RGB(243, 5, 133), measured from the sample
+        captions. The pin is rendered 4x supersampled with numpy
+        anti-aliasing and soft shading on the ball rim, then
+        area-downscaled for smooth edges. The result is cached per
+        pixel size.
         """
 
         size = max(12, int(size))
@@ -566,19 +513,13 @@ class LocationCaptionBuilder:
         and divided by alpha afterwards, so transparent pixels cannot
         bleed black into the visible edge.
 
-        `resample` picks the filter, and the two callers want
-        different ones:
-
-        * The code-drawn artwork (_pin_artwork) has hard analytic
-          edges, where a ringing filter such as LANCZOS produces a
-          negative colour overshoot that clips asymmetrically and
-          shows up as a bright magenta or cyan fringe. It uses the BOX
-          (area average) filter, which has no negative lobes. With an
-          integer downscale factor a box average is also exact.
-        * The emoji glyph (_pin_glyph) is already a soft photographic
-          bitmap, so LANCZOS sharpens it substantially - 12x the edge
-          detail of drawing it directly at final size - and stays
-          halo-free because the source has no hard edge to overshoot.
+        `resample` picks the filter. The code-drawn artwork
+        (_pin_artwork) has hard analytic edges, where a ringing filter
+        such as LANCZOS produces a negative colour overshoot that clips
+        asymmetrically and shows up as a bright magenta or cyan fringe.
+        It uses the BOX (area average) filter, which has no negative
+        lobes. With an integer downscale factor a box average is also
+        exact.
         """
 
         if isinstance(size, int):
@@ -633,11 +574,15 @@ class LocationCaptionBuilder:
     def _render_pin_artwork(big):
 
         """
-        Renders one RGBA pushpin of `big` x `big` pixels with numpy
+        Renders one RGBA pin of `big` x `big` pixels with numpy
         gradient shading:
 
-            needle first     : tapered silver shaft, lit down one side
-            ball head on top : red sphere with sheen and a sparkle
+            thin white stem first : a plain vertical stick
+            ball on top           : flat-colour sphere with a soft
+                                    shaded rim and one white
+                                    highlight dot, like the pin in
+                                    the sample captions. The ball
+                                    colour is RGB(243, 5, 133).
 
         The ink fills the square frame, so the caller can size and
         place it exactly like an emoji glyph.
@@ -663,123 +608,61 @@ class LocationCaptionBuilder:
 
         head_r = big * 0.320
 
-        # ----- silver needle (drawn first, behind the ball) -----
+        # ----- thin white stem (drawn first, behind the ball) -----
 
-        needle_top = head_cy
+        stem_top = head_cy
 
-        shaft_end = big * 0.968
+        stem_end = big * 0.985
 
-        top_half = big * 0.042
+        stem_half = big * 0.030
 
-        bottom_half = big * 0.008
+        dx_stem = px - head_cx
 
-        span = max(1.0, shaft_end - needle_top)
+        dy_stem = py - stem_end
 
-        progress = np.clip(
-            (py - needle_top) / span,
-            0.0,
-            1.0
+        stem_cover = (
+            stem_half
+            - np.abs(dx_stem)
         )
 
-        half_width = (
-            top_half
-            + (bottom_half - top_half) * progress
-        )
-
-        dx_needle = px - head_cx
-
-        shaft_distance = (
-            half_width - np.abs(dx_needle)
-        )
-
-        point_distance = (
-            bottom_half
+        stem_point = (
+            stem_half
             - np.sqrt(
-                dx_needle ** 2
-                + (py - shaft_end) ** 2
+                dx_stem ** 2
+                + dy_stem ** 2
             )
         )
 
-        cover = np.where(
-            py <= shaft_end,
-            shaft_distance,
-            point_distance
+        stem_inside = (
+            stem_half
+            - np.abs(dx_stem)
         )
 
-        needle_alpha = np.where(
-            py >= needle_top,
-            np.clip(cover + aa, 0.0, 1.0),
-            0.0
+        stem_cover = np.where(
+            py <= stem_end,
+            stem_cover,
+            stem_point
         )
 
-        # Cylindrical shading: darker at both edges of the shaft with
-        # a bright core highlight a third of the way across.
-
-        across = np.clip(
-            (dx_needle + half_width)
-            / np.maximum(2.0 * half_width, 1e-6),
-            0.0,
-            1.0
+        stem_alpha = np.where(
+            (py >= stem_top) & (py <= stem_end),
+            np.clip(stem_cover + aa, 0.0, 1.0),
+            np.clip(stem_inside + aa, 0.0, 1.0)
+            * np.where(py > stem_end, 1.0, 0.0)
         )
 
-        core = np.exp(
-            -((across - 0.33) ** 2) / (2.0 * 0.17 ** 2)
+        # White stick, barely shaded so it stays readable on bright
+        # footage without turning into a grey bar.
+        stem_rgb = np.full(
+            (big, big, 3),
+            255.0,
         )
 
-        near_edge = np.exp(
-            -(across ** 2) / (2.0 * 0.12 ** 2)
+        stem_rgb *= (
+            0.94 + 0.06 * np.clip(dy_stem / max(1.0, stem_end - stem_top), 0.0, 1.0)[..., None]
         )
 
-        light_level = np.clip(
-            0.66 + 0.40 * core - 0.22 * near_edge,
-            0.0,
-            1.0
-        )
-
-        dark = np.array([88.0, 93.0, 102.0])
-
-        mid = np.array([176.0, 182.0, 190.0])
-
-        bright = np.array([250.0, 252.0, 255.0])
-
-        low = np.clip(
-            light_level / 0.5,
-            0.0,
-            1.0
-        )[..., None]
-
-        high = np.clip(
-            (light_level - 0.5) / 0.5,
-            0.0,
-            1.0
-        )[..., None]
-
-        needle_rgb = dark * (1.0 - low) + mid * low
-
-        needle_rgb = needle_rgb * (1.0 - high) + bright * high
-
-        # Darken slightly toward the point, and let the ball cast a
-        # soft contact shadow onto the needle below it.
-
-        needle_rgb *= (
-            1.0 - 0.22 * progress
-        )[..., None]
-
-        contact = np.clip(
-            (
-                py
-                - (head_cy + head_r * 0.62)
-            )
-            / (big * 0.16),
-            0.0,
-            1.0
-        )
-
-        needle_rgb *= (
-            1.0 - 0.35 * (1.0 - contact)
-        )[..., None]
-
-        # ----- glossy red ball head (painted over the needle) -----
+        # ----- hot-pink ball head (painted over the stem) -----
 
         offset_x = (px - head_cx) / head_r
 
@@ -793,69 +676,80 @@ class LocationCaptionBuilder:
             1.0
         )
 
-        normal_z = np.sqrt(
-            np.clip(1.0 - distance_sq, 0.0, 1.0)
+        # The sample pin is a flat hot-pink disc with a slightly
+        # darkened rim - not a glossy 3D sphere. The colour was
+        # measured from the sample caption: RGB(243, 5, 133).
+        ball_rgb = np.empty(
+            (big, big, 3),
+            dtype=np.float64,
         )
 
-        light = np.array([-0.40, -0.52, 0.75])
+        ball_rgb[..., 0] = 243.0
 
-        light = light / np.linalg.norm(light)
+        ball_rgb[..., 1] = 5.0
 
-        lambert = np.clip(
-            offset_x * light[0]
-            + offset_y * light[1]
-            + normal_z * light[2],
-            0.0,
-            1.0
-        )
-
-        base = np.array([223.0, 33.0, 55.0])
-
-        ball_rgb = base * (
-            0.48 + 0.68 * lambert
-        )[..., None]
-
-        # Darken the rim that faces away from the light.
+        ball_rgb[..., 2] = 133.0
 
         rim = np.clip(
-            1.0 - normal_z,
+            1.0 - np.sqrt(
+                np.clip(1.0 - distance_sq, 0.0, 1.0)
+            ),
             0.0,
             1.0
-        ) ** 1.6
+        ) ** 1.4
 
-        ball_rgb *= (1.0 - 0.36 * rim)[..., None]
+        ball_rgb *= (
+            1.0 - 0.30 * rim
+        )[..., None]
 
-        # Broad sheen where the light lands, plus a tight sparkle.
+        # ----- white highlight dot in the upper right -----
 
-        sheen = np.clip(
-            (lambert - 0.55) / 0.45,
+        dot_cx = head_cx + head_r * 0.38
+
+        dot_cy = head_cy - head_r * 0.42
+
+        dot_r = head_r * 0.30
+
+        dot_distance = np.sqrt(
+            (px - dot_cx) ** 2
+            + (py - dot_cy) ** 2
+        )
+
+        dot_alpha = np.clip(
+            (dot_r - dot_distance) + aa,
             0.0,
             1.0
-        ) ** 1.5
-
-        ball_rgb = (
-            ball_rgb * (1.0 - 0.26 * sheen)[..., None]
-            + 255.0 * (0.26 * sheen)[..., None]
         )
 
-        sparkle = 0.95 * lambert ** 20.0
+        # ----- composite: the dot is painted OVER the ball -----
 
-        ball_rgb = (
-            ball_rgb * (1.0 - sparkle)[..., None]
-            + 255.0 * sparkle[..., None]
+        ball_with_dot_alpha = np.clip(
+            dot_alpha
+            + ball_alpha * (1.0 - dot_alpha),
+            0.0,
+            1.0
         )
 
-        # ----- composite: needle, then ball, clamp to 8-bit -----
+        ball_with_dot_rgb = (
+            255.0 * dot_alpha[..., None]
+            + ball_rgb
+            * ball_alpha[..., None]
+            * (1.0 - dot_alpha)[..., None]
+        ) / np.maximum(
+            ball_with_dot_alpha,
+            1e-6
+        )[..., None]
 
         alpha = (
-            needle_alpha * (1.0 - ball_alpha)
-            + ball_alpha
+            stem_alpha * (1.0 - ball_with_dot_alpha)
+            + ball_with_dot_alpha
         )
 
         rgb = (
-            needle_rgb
-            * (needle_alpha * (1.0 - ball_alpha))[..., None]
-            + ball_rgb * ball_alpha[..., None]
+            stem_rgb
+            * (stem_alpha * (1.0 - ball_with_dot_alpha))[..., None]
+            + ball_with_dot_rgb
+            * ball_with_dot_alpha[..., None]
         ) / np.maximum(alpha, 1e-6)[..., None]
 
         rgba = np.dstack(
@@ -926,38 +820,21 @@ class LocationCaptionBuilder:
 
             if is_pin:
 
-                # The pin is the real emoji glyph, drawn with the
-                # platform color emoji font on the shared text
-                # baseline, so it uses that font's own advance (a
-                # wide em slot). Without a color emoji font the pin
-                # is composited as artwork in an equally wide slot.
-                emoji_font = self._load_color_emoji_font(
-                    font_size
+                # The pin is always the code-drawn "lollipop" - a
+                # hot-pink ball with a white highlight dot on a thin
+                # white stem (see _render_pin_artwork) - matching the
+                # sample captions, whose pin is a custom graphic and
+                # NOT the platform emoji glyph. The slot keeps the
+                # generous emoji-style advance, so the layout does not
+                # change between machines.
+                advance = (
+                    float(font_size)
+                    * PIN_ADVANCE_RATIO
                 )
 
-                if emoji_font is not None:
+                pin_font = text_font
 
-                    advance = float(
-                        measure_draw.textlength(
-                            character,
-                            font=emoji_font
-                        )
-                    )
-
-                    pin_font = emoji_font
-
-                    kind = "pin"
-
-                else:
-
-                    advance = (
-                        float(font_size)
-                        * PIN_ADVANCE_RATIO
-                    )
-
-                    pin_font = text_font
-
-                    kind = "pin_artwork"
+                kind = "pin_artwork"
 
                 entries.append(
                     {
@@ -1073,86 +950,55 @@ class LocationCaptionBuilder:
 
             origin_x = padding + entry["x"]
 
-            if entry["kind"] in ("pin", "pin_artwork"):
+            if entry["kind"] == "pin_artwork":
 
-                drawn = False
+                # The code-drawn pin, composited centred in its
+                # advance slot so it sits on the shared baseline
+                # exactly where the font would have drawn it
+                # (PIN_ASCENT_RATIO of the font size above the
+                # baseline, PIN_DESCENT_RATIO below it). No stroke:
+                # the artwork brings its own colours.
 
-                if entry["kind"] == "pin":
-
-                    # The real emoji, in full color and supersampled
-                    # for a smooth edge, pasted so it sits on the
-                    # shared baseline exactly where the font would
-                    # have drawn it. No stroke: the emoji brings its
-                    # own artwork.
-
-                    glyph = self._pin_glyph(
-                        entry["character"],
-                        font_size
-                    )
-
-                    if glyph is not None:
-
-                        pin_image, offset_x, offset_y = glyph
-
-                        image.paste(
-                            pin_image,
-                            (
-                                int(round(origin_x)) + offset_x,
-                                int(round(baseline)) + offset_y,
-                            ),
-                            pin_image,
-                        )
-
-                        drawn = True
-
-                if not drawn:
-
-                    # No color emoji font, or the glyph failed:
-                    # composite the pin drawn in code, placed with
-                    # the same proportions as the emoji glyph
-                    # (0.897 of the font size above the baseline,
-                    # 0.086 below it).
-
-                    pin_size = max(
-                        12,
-                        int(
-                            round(
-                                font_size
-                                * (
-                                    PIN_ASCENT_RATIO
-                                    + PIN_DESCENT_RATIO
-                                )
+                pin_size = max(
+                    12,
+                    int(
+                        round(
+                            font_size
+                            * (
+                                PIN_ASCENT_RATIO
+                                + PIN_DESCENT_RATIO
                             )
                         )
                     )
+                )
 
-                    pin_image = self._pin_artwork(pin_size)
+                pin_image = self._pin_artwork(pin_size)
 
-                    if pin_image is not None:
+                if pin_image is not None:
 
-                        paste_x = int(
-                            round(
-                                origin_x
-                                + (
-                                    entry["advance"]
-                                    - pin_size
-                                )
-                                / 2.0
+                    paste_x = int(
+                        round(
+                            origin_x
+                            + (
+                                entry["advance"]
+                                - pin_image.width
                             )
+                            / 2.0
                         )
+                    )
 
-                        paste_y = int(
-                            round(
-                                baseline
-                                - font_size * PIN_ASCENT_RATIO
-                            )
+                    paste_y = int(
+                        round(
+                            baseline
+                            - font_size * PIN_ASCENT_RATIO
                         )
+                    )
 
-                        image.paste(
-                            pin_image,
-                            (paste_x, paste_y),
-                            pin_image,
-                        )
+                    image.paste(
+                        pin_image,
+                        (paste_x, paste_y),
+                        pin_image,
+                    )
 
                 continue
 
@@ -1218,7 +1064,7 @@ class LocationCaptionBuilder:
 
         typing_fraction = self._fraction(
             "typing_fraction",
-            0.3
+            0.22
         )
 
         hold_fraction = self._fraction(
@@ -1254,6 +1100,19 @@ class LocationCaptionBuilder:
             else 0.0
         )
 
+        # Build a white cursor bar once, then show/hide it by timing.
+        font_size = self._font_size()
+        cursor_w = max(1, int(font_size * CURSOR_WIDTH_RATIO))
+        cursor_h = int(font_size * CURSOR_HEIGHT_RATIO)
+        cursor_drop = font_size * CURSOR_DROP_RATIO
+        cursor_y = line_height - cursor_h - int(cursor_drop)
+        _cursor_img = Image.new("RGBA", (cursor_w, cursor_h), (0, 0, 0, 0))
+        _cursor_draw = ImageDraw.Draw(_cursor_img)
+        _cursor_draw.rectangle(
+            (0, 0, cursor_w - 1, cursor_h - 1), fill=(255, 255, 255, 255)
+        )
+        cursor_piece = ImageClip(np.array(_cursor_img))
+
         clips = []
 
         for index, entry in enumerate(entries):
@@ -1275,17 +1134,13 @@ class LocationCaptionBuilder:
             )
 
             if index + 1 < total:
-
                 right = int(
                     padding + entries[index + 1]["x"]
                 )
-
             else:
-
                 right = image.width
 
             if right <= left:
-
                 continue
 
             piece = image.crop(
@@ -1306,27 +1161,94 @@ class LocationCaptionBuilder:
                 + (total - index) * step_out
             )
 
+            is_pin = entry["kind"] == "pin_artwork"
+
+            # Text characters fade in one at a time during typing, mirroring
+            # the sample captions where each character ramps up over roughly
+            # 2-3 frames. The pin fades in as one piece over PIN_FADE_SECONDS.
             clip = (
-                ImageClip(
-                    np.array(piece)
-                )
-                .with_start(
-                    clip_start
-                )
-                .with_duration(
-                    clip_end - clip_start
-                )
+                ImageClip(np.array(piece))
+                .with_start(clip_start)
+                .with_duration(clip_end - clip_start)
                 .with_position(
                     (
                         line_left + left,
-                        line_top
+                        line_top,
                     )
                 )
             )
 
-            clips.append(
-                clip
+            if is_pin and step_in > 0:
+                clip = clip.with_effects(
+                    [FadeIn(min(step_in, PIN_FADE_SECONDS))]
+                )
+            elif not is_pin and step_in > 0:
+                clip = clip.with_effects(
+                    [FadeIn(min(step_in, CHARACTER_FADE_SECONDS))]
+                )
+
+            clips.append(clip)
+
+            # Cursor: a thin white bar that sits at the right edge of the
+            # last-typed character and blinks on briefly with each new
+            # character during typing (and again during retrace). It is
+            # hidden while the completed line holds.
+            if entry["kind"] == "pin_artwork":
+                continue
+
+            cursor_x = (
+                line_left + right - cursor_w
+                if right > cursor_w
+                else line_left
             )
+
+            if index < total - 1:
+                # Typing phase: cursor appears at the end of this
+                # character and stays briefly before the next one.
+                c_start = clip_start
+                c_dur = min(step_in, CURSOR_VISIBLE_SECONDS)
+            else:
+                # Last text character: cursor blinks briefly when it
+                # first appears (like every other character), then
+                # disappears. It does NOT persist through the hold.
+                c_start = clip_start
+                c_dur = min(step_in, CURSOR_VISIBLE_SECONDS)
+
+            # Retrace cursor: during the delete phase each character
+            # disappears right-to-left and the cursor blinks at the
+            # right edge of the character currently being erased,
+            # mirroring the sample captions. This is hidden once the
+            # last character is gone.
+            if step_out > 0:
+                r_start = clip_end - min(step_out, CURSOR_VISIBLE_SECONDS)
+                r_dur = min(step_out, CURSOR_VISIBLE_SECONDS)
+                if r_dur > 0:
+                    cursor_clip = (
+                        cursor_piece
+                        .with_start(r_start)
+                        .with_duration(r_dur)
+                        .with_position(
+                            (
+                                cursor_x,
+                                line_top + cursor_y,
+                            )
+                        )
+                    )
+                    clips.append(cursor_clip)
+
+            if c_dur > 0:
+                cursor_clip = (
+                    cursor_piece
+                    .with_start(c_start)
+                    .with_duration(c_dur)
+                    .with_position(
+                        (
+                            cursor_x,
+                            line_top + cursor_y,
+                        )
+                    )
+                )
+                clips.append(cursor_clip)
 
         return clips
 
