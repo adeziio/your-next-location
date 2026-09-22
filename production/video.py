@@ -411,8 +411,14 @@ class ProductionPipeline:
         total_queries = len(visuals)
 
         # Track Pexels video IDs already downloaded this episode so
-        # different search queries do not produce duplicate clips.
+        # different search queries do not produce duplicate clips. Ids
+        # alone are not enough - the same footage can be served under
+        # different Pexels pages/ids - so content hashes (SHA-256 of the
+        # downloaded bytes) are tracked alongside. Both sets are passed
+        # to every fetch call and updated in place, making uniqueness
+        # episode-wide rather than per query folder.
         downloaded_ids = set()
+        downloaded_hashes = set()
 
         for index, visual in enumerate(visuals, start=1):
 
@@ -453,6 +459,7 @@ class ProductionPipeline:
                     query_directory,
                     max_videos=candidates_per_query,
                     downloaded_ids=downloaded_ids,
+                    downloaded_hashes=downloaded_hashes,
                 )
 
             except VideoProviderError:
