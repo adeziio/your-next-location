@@ -1142,6 +1142,10 @@ class LocationCaptionBuilder:
             # Text characters fade in one at a time during typing, mirroring
             # the sample captions where each character ramps up over roughly
             # 2-3 frames. The pin fades in as one piece over PIN_FADE_SECONDS.
+            # The fade is applied to the ALPHA MASK, not to the RGB
+            # channels: FadeIn on the colour channels zeroes them at
+            # t=0 while the mask stays opaque, which flashed a black
+            # pin (and black lettering) on the very first frame.
             clip = (
                 ImageClip(np.array(piece))
                 .with_start(clip_start)
@@ -1154,14 +1158,28 @@ class LocationCaptionBuilder:
                 )
             )
 
-            if is_pin and step_in > 0:
-                clip = clip.with_effects(
-                    [FadeIn(min(step_in, PIN_FADE_SECONDS))]
+            if step_in > 0:
+
+                fade_seconds = min(
+                    step_in,
+                    PIN_FADE_SECONDS
+                    if is_pin
+                    else CHARACTER_FADE_SECONDS
                 )
-            elif not is_pin and step_in > 0:
-                clip = clip.with_effects(
-                    [FadeIn(min(step_in, CHARACTER_FADE_SECONDS))]
-                )
+
+                if clip.mask is not None:
+
+                    clip = clip.with_mask(
+                        clip.mask.with_effects(
+                            [FadeIn(fade_seconds)]
+                        )
+                    )
+
+                else:
+
+                    clip = clip.with_effects(
+                        [FadeIn(fade_seconds)]
+                    )
 
             clips.append(clip)
 
