@@ -90,17 +90,18 @@ PIN_CHARACTERS = (
 # normalised by the text font size so they hold at every resolution:
 #
 # * the pin ink (ball top to stem end) spans 0.74 of the font size
-#   above the baseline and 0.02 below it,
+#   above the baseline and rests level with the following letters'
+#   ink bottom (baseline + outline stroke),
 # * the slot advance is 0.60 of the font size - the caption's own
 #   space character after the pin provides the rest of the gap to the
 #   text, which measures about 0.33 font sizes in the samples.
 #
 # The artwork itself is drawn so that its ball diameter is 0.72 of the
 # artwork square, which works out to about 0.55 font sizes - matching
-# the measured ball in the samples.
+# the measured ball in the samples. The artwork square's bottom edge is
+# placed at the text ink bottom (baseline + outline stroke), so there
+# is no separate descent proportion.
 PIN_ASCENT_RATIO = 0.74
-
-PIN_DESCENT_RATIO = 0.02
 
 PIN_ADVANCE_RATIO = 0.60
 
@@ -609,10 +610,15 @@ class LocationCaptionBuilder:
         head_r = big * 0.320
 
         # ----- thin white stem (drawn first, behind the ball) -----
+        # The stem runs the full height of the square so its flat-cut end
+        # sits exactly on the bottom edge of the artwork image. The caller
+        # sizes that square so the bottom edge lands on the text ink
+        # bottom (baseline + stroke), so the stem ends level with the
+        # following letters.
 
         stem_top = head_cy
 
-        stem_end = big * 0.985
+        stem_end = big * 1.0
 
         stem_half = big * 0.030
 
@@ -620,35 +626,11 @@ class LocationCaptionBuilder:
 
         dy_stem = py - stem_end
 
-        stem_cover = (
-            stem_half
-            - np.abs(dx_stem)
-        )
-
-        stem_point = (
-            stem_half
-            - np.sqrt(
-                dx_stem ** 2
-                + dy_stem ** 2
-            )
-        )
-
-        stem_inside = (
-            stem_half
-            - np.abs(dx_stem)
-        )
-
-        stem_cover = np.where(
-            py <= stem_end,
-            stem_cover,
-            stem_point
-        )
-
+        # Flat-cut stick: full cover down to the artwork's bottom edge.
         stem_alpha = np.where(
             (py >= stem_top) & (py <= stem_end),
-            np.clip(stem_cover + aa, 0.0, 1.0),
-            np.clip(stem_inside + aa, 0.0, 1.0)
-            * np.where(py > stem_end, 1.0, 0.0)
+            np.clip(stem_half - np.abs(dx_stem) + aa, 0.0, 1.0),
+            0.0,
         )
 
         # White stick, barely shaded so it stays readable on bright
@@ -952,22 +934,16 @@ class LocationCaptionBuilder:
 
             if entry["kind"] == "pin_artwork":
 
-                # The code-drawn pin, composited centred in its
-                # advance slot so it sits on the shared baseline
-                # exactly where the font would have drawn it
-                # (PIN_ASCENT_RATIO of the font size above the
-                # baseline, PIN_DESCENT_RATIO below it). No stroke:
-                # the artwork brings its own colours.
+                # The code-drawn pin, scaled so its full-height flat stem
+                # ends level with the following letters' ink bottom
+                # (baseline + outline stroke), then centred in its advance
+                # slot. No stroke: the artwork brings its own colours.
 
                 pin_size = max(
                     12,
                     int(
                         round(
-                            font_size
-                            * (
-                                PIN_ASCENT_RATIO
-                                + PIN_DESCENT_RATIO
-                            )
+                            font_size * PIN_ASCENT_RATIO + stroke_width
                         )
                     )
                 )
