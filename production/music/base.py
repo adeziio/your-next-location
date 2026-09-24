@@ -64,7 +64,8 @@ class MusicProvider:
 
         """
         Selects and downloads a track suitable for the given mood
-        tags (a list of lowercase words, possibly empty) into
+        tags (a list of lowercase words or short phrases, possibly
+        empty) into
         destination_dir. Returns a metadata dict:
 
             {

@@ -611,18 +611,56 @@ class ContentGenerator(BaseAIService):
         Turns the model's music_mood string into 1-3 mood words the
         music provider understands. Unknown words are dropped so the
         provider never has to guess at an unmapped mood.
+
+        Multi-word entries from the allowed list (for example
+        "bossa nova") are matched before single words, so the phrase
+        is kept as one mood instead of being dropped word by word.
         """
 
-        words = re.findall(
-            r"[a-z]+",
-            str(value or "").lower()
-        )
+        text = str(
+            value or ""
+        ).lower()
 
         moods = []
 
-        for word in words:
+        phrases = sorted(
+            (
+                mood
+                for mood in self.allowed_music_moods
+                if " " in mood
+            ),
+            key=len,
+            reverse=True
+        )
 
-            if word in self.allowed_music_moods and word not in moods:
+        for phrase in phrases:
+
+            if len(moods) >= 3:
+
+                break
+
+            if (
+                phrase in text
+                and phrase not in moods
+            ):
+
+                moods.append(phrase)
+
+                text = text.replace(phrase, " ")
+
+        for word in re.findall(
+            r"[a-z]+",
+            text
+        ):
+
+            if len(moods) >= 3:
+
+                break
+
+            if (
+                word in self.allowed_music_moods
+                and word not in moods
+            ):
 
                 moods.append(word)
 

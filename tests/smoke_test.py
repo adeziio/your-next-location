@@ -122,6 +122,78 @@ def test_production_pipeline_imports():
     assert pipeline.composer is not None
 
 
+def test_music_mood_genre_map_consistency():
+    """allowed_music_moods, music_rules and MOOD_GENRE_MAP stay in sync."""
+    config = _load_config()
+
+    from ai.content_generator import ContentGenerator
+    from production.music.freesafemusic import MOOD_GENRE_MAP
+
+    generator = ContentGenerator(config)
+    allowed = set(generator.allowed_music_moods)
+
+    # Every allowed mood must map onto Free Safe Music genre pages and
+    # vice versa - a mood without a mapping would silently pull
+    # unrelated genre pages.
+    assert allowed == set(MOOD_GENRE_MAP.keys()), (
+        "allowed_music_moods (config/content.json) and MOOD_GENRE_MAP "
+        "(production/music/freesafemusic.py) must list the same moods"
+    )
+
+    for mood, slugs in MOOD_GENRE_MAP.items():
+        assert slugs, f"Mood '{mood}' maps to no genre slugs"
+        for slug in slugs:
+            assert " " not in slug and slug == slug.strip().lower(), (
+                f"Mood '{mood}' has a malformed genre slug: '{slug}'"
+            )
+
+    # The culture-flavored moods that give locations their local sound.
+    for mood in ("jazz", "funky", "disco", "folk", "tribal", "bossa nova"):
+        assert mood in allowed
+
+    # The hardcoded list inside music_rules must mention every allowed
+    # mood, otherwise the model is instructed with a stale vocabulary.
+    rules = config["content"]["content_generation"].get("music_rules", [])
+    list_rule = next(
+        (rule for rule in rules if "Use words from this list only" in rule),
+        "",
+    )
+    assert list_rule, "music_rules is missing the allowed-words rule"
+    for mood in generator.allowed_music_moods:
+        assert mood in list_rule, (
+            f"Mood '{mood}' is allowed but missing from the "
+            "music_rules list"
+        )
+
+
+def test_normalize_mood():
+    """_normalize_mood keeps allowed phrases and drops unknown words."""
+    config = _load_config()
+
+    from ai.content_generator import ContentGenerator
+
+    generator = ContentGenerator(config)
+
+    # Multi-word allowed moods are matched before single words.
+    assert generator._normalize_mood("dreamy bossa nova chill") == [
+        "bossa nova",
+        "dreamy",
+        "chill",
+    ]
+    # No phrase is assembled from fragments; unknown words are dropped.
+    assert generator._normalize_mood("BossaNova") == []
+    assert generator._normalize_mood("cinematic kpop tropical") == [
+        "cinematic",
+        "tropical",
+    ]
+    # Never more than three moods reach the provider.
+    assert generator._normalize_mood("lofi chill bossa nova jazz") == [
+        "bossa nova",
+        "lofi",
+        "chill",
+    ]
+
+
 if __name__ == "__main__":
     test_config_loads()
     print("PASS: config_loads")
@@ -133,4 +205,8 @@ if __name__ == "__main__":
     print("PASS: composer_imports")
     test_production_pipeline_imports()
     print("PASS: production_pipeline_imports")
+    test_music_mood_genre_map_consistency()
+    print("PASS: music_mood_genre_map_consistency")
+    test_normalize_mood()
+    print("PASS: normalize_mood")
     print("\nAll smoke tests passed.")

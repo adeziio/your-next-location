@@ -10,7 +10,8 @@
             "lofi", "chill", "dreamy", "cinematic", "ambient", "melodic",
             "tropical", "upbeat", "atmospheric", "modern", "electronic",
             "inspiring", "relaxing", "warm", "energetic", "epic", "smooth",
-            "nostalgic"
+            "nostalgic", "jazz", "funky", "disco", "folk", "tribal",
+            "bossa nova"
         ],
         "destinations": {
             "Europe": [
@@ -226,7 +227,8 @@
         "music_rules": [
             "The music is the only audio in the video, so it must match the destination and the footage: the culture, the climate and the energy of the place.",
             "Music does NOT have to be relaxing. Choose what fits the destination: lofi and chill for a slow atmospheric city, cinematic and epic for mountains and skylines, tropical and upbeat for islands and coastlines, dreamy and ambient for moody northern places, modern electronic for a sleek futuristic city.",
-            "Output 1-3 lowercase mood words for the music. Use words from this list only: lofi, chill, dreamy, cinematic, ambient, melodic, tropical, upbeat, atmospheric, modern, electronic, inspiring, relaxing, warm, energetic, epic, smooth, nostalgic.",
+            "When the destination has a recognizable local music culture, prefer a mood word that evokes it, but only when it genuinely fits the place: jazz for cities with a jazz scene or late-night nightlife, funky or disco for retro, beach-party or street-market energy, folk for countryside, highland and folk-tradition places like Ireland, Scotland or alpine villages, tribal for safari, jungle and ancient-ruin destinations, bossa nova for Brazilian destinations. Never force a culture word onto a place it does not belong.",
+            "Output 1-3 lowercase mood words for the music. Use words from this list only: lofi, chill, dreamy, cinematic, ambient, melodic, tropical, upbeat, atmospheric, modern, electronic, inspiring, relaxing, warm, energetic, epic, smooth, nostalgic, jazz, funky, disco, folk, tribal, bossa nova. Bossa nova counts as a single mood written as two words.",
             "Never describe a specific copyrighted song or artist. Only the general mood and style are chosen here; the licensed track itself is selected automatically from a royalty-free library."
         ],
         "creative_directions": [

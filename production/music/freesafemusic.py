@@ -17,7 +17,12 @@ Maps destination mood words to Free Safe Music genre slugs.
 
 The destination chooses the energy: a sleepy atmospheric city wants
 lofi/chill, an island wants tropical/upbeat, mountains and skylines want
-cinematic, and a sleek modern city wants electronic. Every track on Free
+cinematic, and a sleek modern city wants electronic. Culture-flavored
+moods let the destination pick a local sound as well: jazz, funky,
+disco, folk, tribal and bossa nova route to the site's matching genre
+pages (folk has no dedicated page, so it goes to the guitar page where
+the catalog's folk track lives); every slug below is a real
+/genres/<slug>/ page. Every track on Free
 Safe Music is published under the same site-wide license
 (freesafemusic.com/usage): free for commercial and monetized use on
 YouTube, Instagram Reels, TikTok and more, with no attribution and no
@@ -44,6 +49,16 @@ MOOD_GENRE_MAP = {
     "epic": ["epic", "cinematic", "orchestral"],
     "smooth": ["smooth", "lounge", "jazz"],
     "nostalgic": ["nostalgic", "vintage", "mellow"],
+    # Culture-flavored moods: each routes to a real /genres/<slug>/
+    # page on freesafemusic.com (verified). "folk" has no dedicated
+    # genre page - the catalog's folk track lives on the guitar page -
+    # so it routes there instead.
+    "jazz": ["jazz", "lounge", "smooth"],
+    "funky": ["funky", "funk", "groove"],
+    "disco": ["disco", "funky", "dance"],
+    "folk": ["guitar", "acoustic", "warm"],
+    "tribal": ["tribal", "cinematic", "epic"],
+    "bossa nova": ["bossa-nova", "jazz", "acoustic"],
 }
 
 
