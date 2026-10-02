@@ -21,8 +21,8 @@
     "captions": {
         "enabled": true,
         "duration_seconds": 5,
-        "typing_fraction": 0.22,
-        "hold_fraction": 0.4,
+        "typing_fraction": 0.2,
+        "hold_fraction": 0.6,
         "font_size": 66,
         "font_weight": "semibold",
         "letter_spacing": 0,
