@@ -3,7 +3,7 @@ from youtube.config import (
 )
 
 
-DEFAULT_CATEGORY_ID = "24"  # Entertainment
+DEFAULT_CATEGORY_ID = "19"  # Travel & Events
 
 DEFAULT_PRIVACY_STATUS = "private"
 
