@@ -67,7 +67,49 @@ setup.bat
 runner.bat
 ```
 
-The web UI starts at http://localhost:8000.
+The web UI starts at http://localhost:8001.
+
+`runner.bat` opens this page for you automatically once the server is
+listening. Set `APP_OPEN_BROWSER=0` before running it if you would rather
+open the URL yourself.
+
+### Running alongside other projects
+
+This project is designed to run **at the same time as the other projects in
+this workspace**. To start everything together, use the launcher one level up:
+
+```bat
+..\run-all.bat
+```
+
+Each project keeps its own resources, so nothing collides:
+
+| Resource | Aden & Anna | Curious About Things | Hear His Voice | Monki Labs | Your Next Location |
+| --- | --- | --- | --- | --- | --- |
+| Web UI | 8002 | 8000 | 8003 | 8004 | **8001** |
+| Chrome debugging port | 9224 | 9222 | 9225 | 9226 | **9223** |
+| Ollama | shared at `localhost:11434` | shared | shared | shared | shared |
+
+Notes:
+
+- **Ollama is shared on purpose.** `runner.bat` no longer stops it. If an
+  instance is already answering it is reused, and `OLLAMA_NUM_PARALLEL=2`
+  lets two projects generate at the same time instead of queueing. Killing
+  Ollama would abort a generation running in another project.
+- **Ollama's accelerator mode belongs to whichever project started it first.**
+  The AI-video projects normally start Ollama CPU-only so their video
+  pipeline can use the GPU; a server that is already running keeps the mode
+  it was started with. Stop Ollama yourself first if you need a specific mode.
+- **Chrome is per project.** Each project launches its own browser on its
+  own debugging port with its own profile, because the provider redirects
+  downloads through a browser-wide DevTools setting that two jobs sharing
+  a browser would fight over.
+- **The tunnel is per project.** Each project gets its own quick tunnel URL,
+  and shutting one down only stops that project's tunnel.
+- To change the port, edit `port` in `config/server.json` (or export
+  `APP_PORT`). The runner and the server read the same value, so they
+  cannot disagree. A busy port is reported as an error rather than being
+  silently shared.
 
 ### Command line
 
@@ -196,7 +238,7 @@ The form keeps only what is required:
 Instagram's servers fetch the video themselves, so publishing requires a **publicly reachable HTTPS URL** for the episode MP4. The application derives it automatically from however you are browsing the UI:
 
 * Locally: run `runner.bat` with cloudflared installed — the script auto-starts a quick tunnel and prints the public URL. Browse the app through that URL.
-* On RunPod: expose port 8000 as an HTTP port and browse through the provided `https://<pod-id>-8000.proxy.runpod.net` URL.
+* On RunPod: expose port 8001 as an HTTP port and browse through the provided `https://<pod-id>-8001.proxy.runpod.net` URL.
 
 If the derived host is `localhost`, the server logs a warning and publish failures include the exact unreachable URL for diagnosis.
 

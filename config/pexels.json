@@ -5,7 +5,7 @@
 
     "headless": false,
     "attach_to_existing_chrome": true,
-    "debugging_address": "127.0.0.1:9222",
+    "debugging_address": "127.0.0.1:9223",
     "profile_directory": "media/browser_profile/pexels",
 
     "candidates_per_query": 2,
