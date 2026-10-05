@@ -89,7 +89,7 @@ def test_content_generator_structure():
     )
 
     # The schema must include the travel-specific fields
-    schema = build_schema(generator.visual_count())
+    schema = build_schema(generator.segment_count())
     required = schema.get("required", [])
     assert "title" in required
     assert "summary" in required

@@ -5,7 +5,6 @@
     },
     "content_generation": {
         "instruction": "Choose ONE destination for a cinematic travel Short. The destination must be a real, existing place with abundant, beautiful stock footage available. If the user supplied a destination, use it exactly as given. Otherwise use the destination drawn at random by the system.",
-        "visual_count": 14,
         "allowed_music_moods": [
             "lofi", "chill", "dreamy", "cinematic", "ambient", "melodic",
             "tropical", "upbeat", "atmospheric", "modern", "electronic",

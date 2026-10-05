@@ -9,9 +9,18 @@ from ai.providers.ollama_provider import OllamaProvider
 
 LOCATION_PIN = "\U0001F4CD"
 
-DEFAULT_VISUAL_COUNT = 14
-MIN_VISUAL_COUNT = 2
-MAX_VISUAL_COUNT = 30
+# How long each visual should cover: 60 / 14 = the 14 segments per episode
+# this project was tuned to. The target duration in
+# app.json -> shorts.target_duration_seconds is the only duration setting,
+# and the segment count is derived from it, so there is no second number to
+# keep in sync.
+SECONDS_PER_VISUAL = 60 / 14
+
+DEFAULT_TARGET_SECONDS = 60
+
+# Sanity bounds on the derived count, not tuning.
+MIN_SEGMENT_COUNT = 2
+MAX_SEGMENT_COUNT = 30
 
 MAX_DESTINATION_LENGTH = 48
 
@@ -23,13 +32,13 @@ class ContentGenerationError(RuntimeError):
     pass
 
 
-def build_schema(visual_count):
+def build_schema(segment_count):
     """
     JSON schema passed to Ollama's structured-output mode.
 
     The shape is grammar-enforced so a small local model cannot drift
     into narration, facts or commentary: there is no narration field
-    at all, and the visuals array is locked to exactly visual_count
+    at all, and the visuals array is locked to exactly segment_count
     search queries (one per footage segment of the timeline).
     """
 
@@ -41,8 +50,8 @@ def build_schema(visual_count):
             "music_mood": {"type": "string"},
             "visuals": {
                 "type": "array",
-                "minItems": visual_count,
-                "maxItems": visual_count,
+                "minItems": segment_count,
+                "maxItems": segment_count,
                 "items": {
                     "type": "object",
                     "properties": {
@@ -169,30 +178,29 @@ class ContentGenerator(BaseAIService):
             if str(v).strip()
         )
 
-    def visual_count(self):
+    def segment_count(self):
 
         """
-        How many footage segments the timeline has. Config-driven so
-        the existing "x clips per visual search query" behaviour is
-        unchanged; only the number of queries is read from config.
+        How many footage segments - and therefore how many visuals - an
+        episode has. Derived from app.json -> shorts.target_duration_seconds
+        alone - one visual per SECONDS_PER_VISUAL of narration - so the count
+        follows the target duration with nothing else to update.
         """
-
-        value = self.generation_config.get(
-            "visual_count",
-            DEFAULT_VISUAL_COUNT
-        )
 
         try:
 
-            value = int(value)
+            value = int(round(float(self.config.get("app", {}).get("shorts", {}).get(
+                "target_duration_seconds",
+                DEFAULT_TARGET_SECONDS
+            )) / SECONDS_PER_VISUAL))
 
         except (TypeError, ValueError):
 
-            value = DEFAULT_VISUAL_COUNT
+            value = int(round(DEFAULT_TARGET_SECONDS / SECONDS_PER_VISUAL))
 
         return max(
-            MIN_VISUAL_COUNT,
-            min(value, MAX_VISUAL_COUNT)
+            MIN_SEGMENT_COUNT,
+            min(value, MAX_SEGMENT_COUNT)
         )
 
     def build_prompt(self, instruction=None):
@@ -237,11 +245,11 @@ class ContentGenerator(BaseAIService):
             int(target_seconds)
         )
 
-        visual_count = self.visual_count()
+        segment_count = self.segment_count()
 
         seconds_per_clip = (
-            target_seconds / visual_count
-            if visual_count
+            target_seconds / segment_count
+            if segment_count
             else target_seconds
         )
 
@@ -321,9 +329,9 @@ class ContentGenerator(BaseAIService):
             "right, holds briefly, then retraces off from right to left, and it "
             "is gone within the first few seconds. Everything after that is "
             "footage and music.\n"
-            f"- The video is built from {visual_count} footage segments of about "
+            f"- The video is built from {segment_count} footage segments of about "
             f"{seconds_per_clip:.1f} seconds each, which is why you must return "
-            f"exactly {visual_count} visual search queries.\n\n"
+            f"exactly {segment_count} visual search queries.\n\n"
             "STEP 1 - CHOOSE THE DESTINATION\n"
             "- A destination is a real city, island, coastline, mountain region "
             "or country that exists today.\n"
@@ -364,8 +372,8 @@ class ContentGenerator(BaseAIService):
             f"{music_rules}\n"
             '- "music_mood": 1-3 lowercase words separated by spaces, chosen only '
             "from this list: " + ", ".join(self.allowed_music_moods) + ".\n\n"
-            f"STEP 5 - THE {visual_count} VISUAL SEARCH QUERIES\n"
-            f'- "visuals": EXACTLY {visual_count} objects, each with exactly one '
+            f"STEP 5 - THE {segment_count} VISUAL SEARCH QUERIES\n"
+            f'- "visuals": EXACTLY {segment_count} objects, each with exactly one '
             'field: {"search_query": "stock footage search phrase"}.\n'
             f"{visual_rules}\n"
             "- Every search_query MUST include the full destination name "
@@ -383,7 +391,7 @@ class ContentGenerator(BaseAIService):
             "destination exactly when one was given.\n"
             "2. summary is one short sentence about the place and does NOT "
             "start with the destination name.\n"
-            f"3. visuals contains exactly {visual_count} search queries, each "
+            f"3. visuals contains exactly {segment_count} search queries, each "
             "one a concrete, filmable shot that includes the full destination "
             "name with the country.\n"
             "4. music_mood contains 1-3 words from the allowed list and fits "
@@ -397,18 +405,18 @@ class ContentGenerator(BaseAIService):
 
     def generate(self, instruction=None):
 
-        visual_count = self.visual_count()
+        segment_count = self.segment_count()
 
         prompt = self.build_prompt(instruction)
 
         self.log(
             "Generating destination content "
-            f"({visual_count} visual queries)..."
+            f"({segment_count} visual queries)..."
         )
 
         response = self.llm.generate(
             prompt,
-            response_format=build_schema(visual_count)
+            response_format=build_schema(segment_count)
         )
 
         content = self.parse_content(response)
@@ -860,7 +868,7 @@ class ContentGenerator(BaseAIService):
                 "The AI returned no usable visual search queries."
             )
 
-        requested = self.visual_count()
+        requested = self.segment_count()
 
         if len(cleaned_visuals) != requested:
 

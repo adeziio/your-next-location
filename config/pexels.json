@@ -18,6 +18,9 @@
     "challenge_timeout_seconds": 180,
     "download_timeout_seconds": 300,
 
+    "filter_recovery_attempts": 2,
+    "filter_settle_seconds": 10,
+
     "pause_min_seconds": 3,
     "pause_max_seconds": 6
 }
