@@ -13,7 +13,7 @@ if not exist "%~dp0.venv\Scripts\activate.bat" (
     echo.
     echo ERROR: Python virtual environment not found.
     echo Expected: %~dp0.venv
-    echo Please run install_windows.bat first.
+    echo Please run setup.bat first.
     exit /b 1
 )
 

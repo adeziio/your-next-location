@@ -12,7 +12,7 @@ python --version >nul 2>&1
 
 if %errorlevel% neq 0 (
     echo ERROR: Python not found.
-    echo Please install Python 3.12 first.
+    echo Please run setup.bat first.
     pause
     exit /b 1
 )
@@ -161,7 +161,7 @@ echo ==========================================
 echo.
 echo Run Your Next Location with:
 echo.
-echo run_windows.bat
+echo runner.bat
 echo.
 
 pause

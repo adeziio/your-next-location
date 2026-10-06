@@ -21,7 +21,7 @@ The pipeline is config-driven and fully automated:
    - a music mood (1–3 keywords like `cinematic`, `lofi`, `tropical`)
    - 14 visual search queries (one per footage segment of the timeline)
 
-2. **Video stage** — Stock footage is fetched from Pexel, licensed music is
+2. **Video stage** — Stock footage is fetched from Pexels, licensed music is
    selected from Free Safe Music, and everything is assembled into a vertical
    Short with the location caption animation.
 
@@ -48,7 +48,7 @@ Assemble footage → Add location caption → Mix audio → Export video
 
 - Python 3.12
 - FFmpeg
-- Google Chrome (for Pexel stock-footage downloads)
+- Google Chrome (for Pexels stock-footage downloads)
 - Ollama + `qwen3:8b` model (for destination generation)
 
 ### Install
@@ -120,6 +120,33 @@ python main.py "New York City, USA"
 
 Without a destination argument, the AI picks one at random.
 
+### Web UI and API
+
+`runner.bat` starts `web/server.py` on the port in `config/server.json` (8001 by
+default). The server serves the browser UI from `web/index.html`, discovers
+episodes under `media/output/shorts/`, and runs generation jobs in the
+background. It also provides the YouTube and Instagram publishing actions
+shown on completed episode cards.
+
+The browser UI is the normal entry point for generation and publishing. Use
+`python main.py [destination]` when you want to run the production pipeline
+directly without the web server.
+
+### Output layout
+
+Generated files are kept under `media/output/shorts/<episode>/`:
+
+```text
+content.json   # structured destination, metadata, moods, and visual queries
+prompt.txt     # readable prompt/metadata record
+episode.mp4    # rendered vertical Short
+footage/       # downloaded source clips
+music/         # selected music and provider metadata
+upload.txt     # YouTube/Instagram completion flags, when used
+```
+
+The entire `media/` directory is local runtime data and is ignored by Git.
+
 ## Configuration
 
 All behaviour is driven by JSON files in `config/`:
@@ -128,7 +155,7 @@ All behaviour is driven by JSON files in `config/`:
 |------|---------|
 | `app.json` | Video resolution, FPS, duration, audio, caption settings |
 | `content.json` | Channel description, generation instruction, visual/music rules |
-| `pexels.json` | Stock-footage provider settings (search counts, resolution, timeouts) |
+| `pexels.json` | Pexels stock-footage provider settings (search counts, resolution, timeouts) |
 | `freesafemusic.json` | Music provider settings (genres, preferred tags, timeouts) |
 | `ai_models.json` | LLM model name, temperature, timeout, generation options |
 | `youtube.json` | YouTube upload metadata defaults |
@@ -143,7 +170,7 @@ your-next-location/
 │   └── providers/       # LLM backends (Ollama)
 ├── core/                # Pipeline orchestration
 ├── production/          # Video assembly
-│   ├── footage/         # Stock-footage providers (Pexel)
+│   ├── footage/         # Stock-footage providers (Pexels)
 │   ├── music/           # Music providers (Free Safe Music)
 │   ├── composer.py      # Assembles footage + caption + music into a Short
 │   ├── captions.py      # Opening 📍 location caption animation
@@ -154,6 +181,20 @@ your-next-location/
 ├── media/               # Generated output (ignored by git)
 └── tests/               # Smoke tests
 ```
+
+## Testing
+
+Run the offline smoke suite from the project directory:
+
+```bat
+.venv\Scripts\activate
+python -m pytest tests\smoke_test.py -v
+```
+
+The suite validates configuration loading, the destination schema, caption
+rendering, production wiring, and music-mood mappings. It does not download
+Pexels footage, contact Free Safe Music, call Ollama, or upload to YouTube or
+Instagram.
 
 ---
 
