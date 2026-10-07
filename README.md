@@ -42,6 +42,21 @@ Assemble footage → Add location caption → Mix audio → Export video
 - **Vertical Shorts** (1080×1920, 30 fps) with configurable target duration.
 - **No narration, no voice, no subtitles.** The destination is the content.
 
+## Screenshots
+
+![App overview — episode workflow](web/screenshots/overview.png)
+
+The Web UI drives the whole pipeline: choose a destination, generate the
+travel Short, preview the rendered episode, and publish it.
+
+|                        |                          |
+| ---------------------- | ------------------------ |
+| ![YouTube upload](web/screenshots/youtube.png) | ![Instagram publish](web/screenshots/instagram.png) |
+
+The images above are placeholders. Capture fresh screenshots of the app
+and drop them into `web/screenshots/` — `overview.png`, `instagram.png`,
+and `youtube.png` — and the README picks them up automatically.
+
 ## Quick start
 
 ### Prerequisites
