@@ -45,8 +45,6 @@ MOOD_GENRE_MAP = {
     "inspiring": ["inspiring", "uplifting", "cinematic"],
     "relaxing": ["relaxing", "chill", "soft"],
     "warm": ["warm", "acoustic", "gentle"],
-    "energetic": ["energetic", "upbeat", "groove"],
-    "epic": ["epic", "cinematic", "orchestral"],
     "smooth": ["smooth", "lounge", "jazz"],
     "nostalgic": ["nostalgic", "vintage", "mellow"],
     # Culture-flavored moods: each routes to a real /genres/<slug>/
@@ -54,10 +52,7 @@ MOOD_GENRE_MAP = {
     # genre page - the catalog's folk track lives on the guitar page -
     # so it routes there instead.
     "jazz": ["jazz", "lounge", "smooth"],
-    "funky": ["funky", "funk", "groove"],
-    "disco": ["disco", "funky", "dance"],
     "folk": ["guitar", "acoustic", "warm"],
-    "tribal": ["tribal", "cinematic", "epic"],
     "bossa nova": ["bossa-nova", "jazz", "acoustic"],
 }
 
